@@ -1,0 +1,48 @@
+from flask import Flask, request, jsonify
+from flask_sqlalchemy import SQLAlchemy
+from datetime import datetime
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///messages.db'
+db = SQLAlchemy(app)
+
+class Message(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    sender = db.Column(db.String(50), nullable=False)
+    receiver = db.Column(db.String(50), nullable=False)
+    content = db.Column(db.String(500), nullable=False)
+    color = db.Column(db.String(7), nullable=True)  # HEX color code
+    emoji = db.Column(db.String(10), nullable=True)
+    timestamp = db.Column(db.DateTime, default=datetime.utcnow)
+
+@app.route('/send_message', methods=['POST'])
+def send_message():
+    data = request.json
+    new_message = Message(
+        sender=data['sender'],
+        receiver=data['receiver'],
+        content=data['content'],
+        color=data.get('color'),
+        emoji=data.get('emoji')
+    )
+    db.session.add(new_message)
+    db.session.commit()
+    return jsonify({"message": "Message sent successfully"}), 201
+
+@app.route('/get_messages/<receiver>', methods=['GET'])
+def get_messages(receiver):
+    messages = Message.query.filter_by(receiver=receiver).order_by(Message.timestamp.desc()).all()
+    return jsonify([
+        {
+            "id": message.id,
+            "sender": message.sender,
+            "content": message.content,
+            "color": message.color,
+            "emoji": message.emoji,
+            "timestamp": message.timestamp
+        } for message in messages
+    ])
+
+if __name__ == '__main__':
+    db.create_all()
+    app.run(debug=True)
